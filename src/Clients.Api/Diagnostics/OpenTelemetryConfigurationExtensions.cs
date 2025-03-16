@@ -1,5 +1,7 @@
 using System.Reflection;
 using Npgsql;
+using OpenTelemetry.Logs;
+using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
@@ -10,6 +12,7 @@ public static class OpenTelemetryConfigurationExtensions
     public static WebApplicationBuilder AddOpenTelemetry(this WebApplicationBuilder builder)
     {
         const string serviceName = "Clients.Api";
+        var otlpEndpoint = new Uri(builder.Configuration.GetValue<string>("OTLP_Endpoint")!);
 
         builder.Services.AddOpenTelemetry()
             .ConfigureResource(resource =>
@@ -30,8 +33,23 @@ public static class OpenTelemetryConfigurationExtensions
                 .AddRedisInstrumentation()
                 //.AddConsoleExporter())
                 .AddOtlpExporter(options =>
-                    options.Endpoint = new Uri(builder.Configuration.GetValue<string>("Jaeger")!))
-                );
+                    options.Endpoint = otlpEndpoint)
+            )
+            .WithMetrics(metrics =>
+                metrics
+                    .AddAspNetCoreInstrumentation()
+                    .AddHttpClientInstrumentation()
+                    // Metrics provided by AspNet
+                    .AddMeter("Microsoft.AspNetCore.Hosting")
+                    .AddMeter("Microsoft.AspNetCore.Server.Kestrel")
+                    .AddMeter(ApplicationDiagnostics.Meter.Name)
+                    .AddConsoleExporter()
+                    .AddOtlpExporter(options =>
+                        options.Endpoint = otlpEndpoint)
+            )
+            .WithLogging(logging =>
+                logging.AddOtlpExporter(
+                    options => options.Endpoint = otlpEndpoint));
         return builder;
     }
 }

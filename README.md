@@ -1,4 +1,4 @@
-# Dometrain | From Zero to Hero: OpenTelemetry in .NET
+# OpenTelemetry in .NET
 
 You can find here the source code used and built during the course.
 
