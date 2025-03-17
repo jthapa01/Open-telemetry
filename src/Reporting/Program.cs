@@ -1,4 +1,5 @@
 using Reporting;
+using Reporting.Diagnostics;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,7 +18,7 @@ builder.Services.AddHostedService<ReportingHostedService>(
     )
 );
 
-
+builder.AddOpenTelemetry();
 var app = builder.Build();
 
 app.MapHealthChecks("/healthz");

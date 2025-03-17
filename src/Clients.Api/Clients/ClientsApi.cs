@@ -7,6 +7,7 @@ using Clients.Contracts.Events;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
+using OpenTelemetry;
 
 namespace Clients.Api.Clients;
 
@@ -62,9 +63,6 @@ internal static class ClientsApi
                 if (await IsDuplicatedEmailAsync(db, newClient))
                     return TypedResults.Conflict("A client with the same email already exists.");
 
-                if (!await riskValidator.HasAcceptableRiskLevelAsync(newClient))
-                    return TypedResults.BadRequest("The request cannot be processed. Please contact support.");
-
                 var client = new Client
                 {
                     Name = newClient.Name,
@@ -74,6 +72,10 @@ internal static class ClientsApi
                 };
 
                 Activity.Current.EnrichWithClient(client);
+                Baggage.SetBaggage("client.id", client.Id.ToString());
+
+                if (!await riskValidator.HasAcceptableRiskLevelAsync(newClient))
+                    return TypedResults.BadRequest("The request cannot be processed. Please contact support.");
 
                 db.Clients.Add(client);
                 await db.SaveChangesAsync();

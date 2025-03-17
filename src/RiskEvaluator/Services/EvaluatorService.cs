@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using Grpc.Core;
+using RiskEvaluator.Diagnostics;
 using RiskEvaluator.Services.Rules;
 
 namespace RiskEvaluator.Services;
@@ -16,22 +18,41 @@ public class EvaluatorService : Evaluator.EvaluatorBase
 
     public override Task<RiskEvaluationReply> Evaluate(RiskEvaluationRequest request, ServerCallContext context)
     {
-        _logger.LogInformation("Evaluating risk for {Email}", request.Email);
-        
-        var score = _rules.Sum(rule => rule.Evaluate(request));
+        try
+        {
+            var score = _rules.Sum(rule => rule.Evaluate(request));
 
-        var level = score switch
+            var level = score switch
+            {
+                <= 5 => RiskLevel.Low,
+                <= 20 => RiskLevel.Medium,
+                _ => RiskLevel.High
+            };
+
+            Activity.Current?.SetTag(TagNames.EmailEvaluation, request.Email);
+            Activity.Current?.AddEvent(new ActivityEvent(
+                "RiskResult",
+                tags: new ActivityTagsCollection(
+                    new KeyValuePair<string, object?>[]
+                    {
+                        new(TagNames.RiskScore, score),
+                        new(TagNames.RiskLevel, level),
+                    }
+                )));
+
+            return Task.FromResult(new RiskEvaluationReply()
+            {
+                RiskLevel = level,
+            });
+        }
+        catch (Exception ex)
         {
-            <= 5 =>  RiskLevel.Low,
-            <= 20 => RiskLevel.Medium,
-            _ => RiskLevel.High
-        };
-        
-        _logger.LogInformation("Risk level for {Email} is {Level}", request.Email, level);
-        
-        return Task.FromResult(new RiskEvaluationReply()
-        {
-            RiskLevel = level,
-        });
+            Activity.Current?.SetStatus(ActivityStatusCode.Error);
+            Activity.Current?.AddException(ex);
+            return Task.FromResult(new RiskEvaluationReply()
+            {
+                RiskLevel = RiskLevel.High,
+            });
+        }
     }
 }

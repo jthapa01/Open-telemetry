@@ -1,3 +1,5 @@
+using RiskEvaluator.Diagnostics;
+
 namespace RiskEvaluator.Services.Rules;
 
 public class EmailRule : IRule
@@ -10,6 +12,9 @@ public class EmailRule : IRule
 
     public int Evaluate(RiskEvaluationRequest request)
     {
+        using var activity = ApplicationDiagnostics.ActivitySource.StartActivity("Evaluate Email Rule");
+        activity?.SetTag(TagNames.EmailEvaluation, request.Email);
+        
         var emailDomain = GetEmailDomain(request.Email);
         return IsSuspiciousDomain(emailDomain) ? 20 : 0;
     }

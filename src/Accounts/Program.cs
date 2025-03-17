@@ -1,5 +1,6 @@
 using Accounts;
 using Accounts.CreateAccount;
+using Accounts.Diagnostics;
 using Clients.Contracts.Events;
 using Infrastructure.RabbitMQ;
 using Microsoft.EntityFrameworkCore;
@@ -20,6 +21,8 @@ builder.Services.AddScoped<RabbitMqConsumer<CreateClientRequested>>(
 builder.Services.AddHealthChecks()
     .AddNpgSql(builder.Configuration.GetConnectionString("AccountsDb")!)
     .AddRabbitMQ(rabbitConnectionString: builder.Configuration.GetConnectionString("RabbitMq")!);
+
+builder.AddOpenTelemetry();
 
 var app = builder.Build();
 

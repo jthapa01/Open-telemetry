@@ -1,5 +1,7 @@
 using System.Reflection;
+using Infrastructure.RabbitMQ;
 using Npgsql;
+using OpenTelemetry.Exporter;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
@@ -13,27 +15,42 @@ public static class OpenTelemetryConfigurationExtensions
     {
         const string serviceName = "Clients.Api";
         var otlpEndpoint = new Uri(builder.Configuration.GetValue<string>("OTLP_Endpoint")!);
-
+    
+        // builder.Services
+        //     .ConfigureOpenTelemetryTracerProvider(provider =>
+        //         provider.SetSampler(new RateSampler(0.25)));
+        //
+        // builder.Services
+        //     .ConfigureOpenTelemetryTracerProvider(provider =>
+        //         provider.SetSampler<OpenTelemetry.Trace.AlwaysOffSampler>());
+        
         builder.Services.AddOpenTelemetry()
             .ConfigureResource(resource =>
             {
                 resource
-                    .AddService(serviceName)
+                    .AddService(serviceName,
+                        "Jeev.OpenTelemetry",
+                        Assembly.GetExecutingAssembly().GetName().Version!.ToString())
                     .AddAttributes(new[]
                     {
-                        new KeyValuePair<string, object>("service.version",
-                            Assembly.GetExecutingAssembly().GetName().Version!.ToString())
+                        new KeyValuePair<string, object>("Jeev", "OpenTelemetry"),
                     });
             })
             .WithTracing(tracing => tracing
                 .AddAspNetCoreInstrumentation()
                 .AddGrpcClientInstrumentation()
-                .AddHttpClientInstrumentation()
+                .AddHttpClientInstrumentation(
+                    options => options.RecordException = true)
                 .AddNpgsql()
+                .AddSource(RabbitMqDiagnostics.ActivitySourceName)
                 .AddRedisInstrumentation()
+                .SetSampler<AlwaysOnSampler>()
                 //.AddConsoleExporter())
                 .AddOtlpExporter(options =>
-                    options.Endpoint = otlpEndpoint)
+                {
+                    options.Protocol = OtlpExportProtocol.Grpc;
+                    options.Endpoint = otlpEndpoint;
+                })
             )
             .WithMetrics(metrics =>
                 metrics

@@ -1,22 +1,20 @@
 using System.Reflection;
+using Infrastructure.RabbitMQ;
 using OpenTelemetry.Logs;
+using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
-namespace RiskEvaluator.Diagnostics;
+namespace Notifications.Diagnostics;
 
 public static class OpenTelemetryConfigurationExtensions
 {
     public static WebApplicationBuilder AddOpenTelemetry(this WebApplicationBuilder builder)
     {
-        const string serviceName = "RiskEvaluator";
+        const string serviceName = "Notifications";
 
         var otlpEndpoint = new Uri(builder.Configuration.GetValue<string>("OTLP_Endpoint")!);
 
-        builder.Services
-            .ConfigureOpenTelemetryTracerProvider((provider, providerBuilder) =>
-                providerBuilder.AddProcessor(new BaggageProcessor()));
-        
         builder.Services.AddOpenTelemetry()
             .ConfigureResource(resource =>
             {
@@ -32,15 +30,22 @@ public static class OpenTelemetryConfigurationExtensions
             .WithTracing(tracing =>
                 tracing
                     .AddAspNetCoreInstrumentation()
-                    .AddSource(ApplicationDiagnostics.ActivitySourceName)
-                    // .AddConsoleExporter()
-                    .AddOtlpExporter(options => 
+                    .AddSource(RabbitMqDiagnostics.ActivitySourceName)
+                    .AddOtlpExporter(options =>
+                        options.Endpoint = otlpEndpoint)
+            )
+            .WithMetrics(metrics =>
+                metrics
+                    .AddAspNetCoreInstrumentation()
+                    // Metrics provides by ASP.NET
+                    .AddMeter("Microsoft.AspNetCore.Hosting")
+                    .AddMeter("Microsoft.AspNetCore.Server.Kestrel")
+                    .AddOtlpExporter(options =>
                         options.Endpoint = otlpEndpoint)
             )
             .WithLogging(
                 logging=>
                     logging
-                        // .AddConsoleExporter()
                         .AddOtlpExporter(options => 
                             options.Endpoint = otlpEndpoint)
             );

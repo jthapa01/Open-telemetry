@@ -45,6 +45,7 @@
     environment:
       ConnectionStrings__AccountsDb: Host=accounts.db;Port=5432;Database=AccountsDb;Username=postgres;Password=password
       ConnectionStrings__RabbitMq: amqp://guest:guest@rabbitmq:5672/
+      OTLP_Endpoint: http://otel-collector:4317
     ports:
       - "8081:8080"
     depends_on:
@@ -66,6 +67,7 @@
       dockerfile: src/Notifications/Dockerfile
     environment:
       ConnectionStrings__RabbitMq: amqp://guest:guest@rabbitmq:5672/
+      OTLP_Endpoint: http://otel-collector:4317
     ports:
       - "8082:8080"
     depends_on:
@@ -89,6 +91,7 @@
       dockerfile: src/Reporting/Dockerfile
     environment:
       ConnectionStrings__RabbitMq: amqp://guest:guest@rabbitmq:5672/
+      OTLP_Endpoint: http://otel-collector:4317
     ports:
       - "8084:8080"
     depends_on:
@@ -98,7 +101,7 @@
     image: jaegertracing/all-in-one:1.58.0
     ports:
       - "16686:16686" # Jaeger Web UI
-        
+  
   prometheus:
     image: prom/prometheus:v2.53.0
     ports:
@@ -107,21 +110,19 @@
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--web.listen-address=:9090'
-      - '--web.enable-lifecycle'
-        
+  
+  
+  
   grafana:
     image: grafana/grafana:10.4.4
-    ports:
-      - "3000:3000"
+    volumes:
+      - ./grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
     environment:
       GF_AUTH_ANONYMOUS_ENABLED: "true"
       GF_AUTH_ANONYMOUS_ORG_ROLE: "Admin"
-    volumes:
-      - ./grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
-    depends_on:
-      - prometheus
-        
+    ports:
+      - "3000:3000"
+
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.103.0
     volumes:
@@ -135,14 +136,14 @@
       - "13133:13133" # health_check extension
       - "55679:55679" # ZPages extension
       - "4317:4317"   # OTLP Receiver
-    depends_on: 
+    depends_on:
       - jaeger
       - prometheus
       - loki
-      
+  
+  
   loki:
     image: grafana/loki:2.7.1
     ports:
       - "3100:3100"
     command: -config.file=/etc/loki/local-config.yaml
-      
